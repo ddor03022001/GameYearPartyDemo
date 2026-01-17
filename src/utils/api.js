@@ -185,6 +185,44 @@ export const resetGame = async () => {
     }
 };
 
+// ============ ANSWER HISTORY ============
+
+export const addAnswerHistory = async (qrId, question, correctAnswer, companyId, companyName, pieceIndex) => {
+    try {
+        const res = await fetch(`${API_BASE}/answer-history`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ qrId, question, correctAnswer, companyId, companyName, pieceIndex })
+        });
+        return await res.json();
+    } catch (err) {
+        console.error('API Error:', err);
+        return { success: false };
+    }
+};
+
+export const getAnswerHistory = async () => {
+    try {
+        const res = await fetch(`${API_BASE}/answer-history`);
+        return await res.json();
+    } catch (err) {
+        console.error('API Error:', err);
+        return [];
+    }
+};
+
+// ============ LIVE DASHBOARD ============
+
+export const getLiveDashboard = async () => {
+    try {
+        const res = await fetch(`${API_BASE}/live-dashboard`);
+        return await res.json();
+    } catch (err) {
+        console.error('API Error:', err);
+        return { answerHistory: [], gameStates: [], leaderboard: [], gameStarted: false };
+    }
+};
+
 export default {
     checkQRUsed,
     markQRUsed,
@@ -202,5 +240,7 @@ export default {
     startGame,
     stopGame,
     resetGame,
+    addAnswerHistory,
+    getAnswerHistory,
+    getLiveDashboard,
 };
-

@@ -99,7 +99,16 @@ const QuestionPage = () => {
                 });
                 setNewPieceIndex(result.newPieceIndex);
 
-                // QR đã được đánh dấu used ở checkAndLoadQuestion rồi
+                // Lưu vào lịch sử để hiển thị trên Live Dashboard
+                const correctAnswerText = question.answers[question.correctAnswer];
+                await api.addAnswerHistory(
+                    qrId,
+                    question.question,
+                    correctAnswerText,
+                    company.id,
+                    company.name,
+                    result.newPieceIndex
+                );
 
                 if (result.isCompleted) {
                     // Add to leaderboard

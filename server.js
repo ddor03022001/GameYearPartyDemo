@@ -40,6 +40,18 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT
   );
+  
+  CREATE TABLE IF NOT EXISTS answer_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    qr_id TEXT,
+    question TEXT,
+    correct_answer TEXT,
+    company_id TEXT,
+    company_name TEXT,
+    piece_index INTEGER,
+    answered_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    timestamp INTEGER
+  );
 `);
 
 app.use(cors());
@@ -256,7 +268,59 @@ app.post('/api/game-status/reset', (req, res) => {
     db.prepare('DELETE FROM used_qr').run();
     db.prepare('DELETE FROM game_state').run();
     db.prepare('DELETE FROM leaderboard').run();
-    res.json({ success: true, message: 'Game reset - all pieces, QR, leaderboard cleared' });
+    db.prepare('DELETE FROM answer_history').run();
+    res.json({ success: true, message: 'Game reset - all data cleared' });
+});
+
+// ============ ANSWER HISTORY ============
+
+// Add answer to history
+app.post('/api/answer-history', (req, res) => {
+    const { qrId, question, correctAnswer, companyId, companyName, pieceIndex } = req.body;
+    try {
+        db.prepare(`
+            INSERT INTO answer_history (qr_id, question, correct_answer, company_id, company_name, piece_index, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(qrId, question, correctAnswer, companyId, companyName, pieceIndex, Date.now());
+        res.json({ success: true });
+    } catch (err) {
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// Get answer history (for live dashboard)
+app.get('/api/answer-history', (req, res) => {
+    const rows = db.prepare('SELECT * FROM answer_history ORDER BY timestamp DESC LIMIT 50').all();
+    res.json(rows);
+});
+
+// ============ LIVE DASHBOARD DATA ============
+
+// Get all data for live dashboard
+app.get('/api/live-dashboard', (req, res) => {
+    // Get recent answers
+    const answerHistory = db.prepare('SELECT * FROM answer_history ORDER BY timestamp DESC LIMIT 20').all();
+
+    // Get all game states
+    const gameStates = db.prepare('SELECT * FROM game_state').all();
+
+    // Get leaderboard
+    const leaderboard = db.prepare('SELECT * FROM leaderboard ORDER BY timestamp ASC').all();
+
+    // Get game started status
+    const gameStartedRow = db.prepare('SELECT value FROM config WHERE key = ?').get('game_started');
+    const gameStarted = gameStartedRow ? gameStartedRow.value === 'true' : false;
+
+    res.json({
+        answerHistory,
+        gameStates: gameStates.map(g => ({
+            companyId: g.company_id,
+            revealedPieces: JSON.parse(g.revealed_pieces),
+            isCompleted: !!g.is_completed
+        })),
+        leaderboard,
+        gameStarted
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -264,4 +328,3 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📊 Stats: http://localhost:${PORT}/api/stats`);
     console.log(`📱 Điện thoại kết nối qua IP máy tính + port ${PORT}`);
 });
-

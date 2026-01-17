@@ -7,30 +7,47 @@ import { DEFAULT_QUESTIONS, GAME_CONFIG } from '../data/config';
  * Get a random question based on priority (higher priority = more likely to be selected)
  * @returns {Object} Random question
  */
+// export const getRandomQuestion = () => {
+//     let questions = getQuestions();
+
+//     // Use default questions if none are saved
+//     if (!questions || questions.length === 0) {
+//         questions = [...DEFAULT_QUESTIONS];
+//     }
+
+//     // Calculate total priority
+//     const totalPriority = questions.reduce((sum, q) => sum + q.priority, 0);
+
+//     // Get random number
+//     let random = Math.random() * totalPriority;
+
+//     // Select question based on priority
+//     for (const question of questions) {
+//         random -= question.priority;
+//         if (random <= 0) {
+//             return question;
+//         }
+//     }
+
+//     // Fallback to first question
+//     return questions[0];
+// };
+
 export const getRandomQuestion = () => {
     let questions = getQuestions();
 
-    // Use default questions if none are saved
+    // Dùng danh sách mặc định nếu không tìm thấy dữ liệu
     if (!questions || questions.length === 0) {
         questions = [...DEFAULT_QUESTIONS];
     }
 
-    // Calculate total priority
-    const totalPriority = questions.reduce((sum, q) => sum + q.priority, 0);
+    // --- PHẦN THAY ĐỔI: RANDOM ĐƠN GIẢN ---
 
-    // Get random number
-    let random = Math.random() * totalPriority;
+    // Lấy một chỉ số ngẫu nhiên từ 0 đến (tổng số câu - 1)
+    const randomIndex = Math.floor(Math.random() * questions.length);
 
-    // Select question based on priority
-    for (const question of questions) {
-        random -= question.priority;
-        if (random <= 0) {
-            return question;
-        }
-    }
-
-    // Fallback to first question
-    return questions[0];
+    // Trả về câu hỏi tại vị trí đó
+    return questions[randomIndex];
 };
 
 /**

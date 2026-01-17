@@ -79,7 +79,7 @@ const CompanySelector = ({ onSelect, disabled }) => {
                 }}
               />
             </div>
-            <span className="company-name">{company.name}</span>
+            {/* <span className="company-name">{company.name}</span> */}
             {selectedCompany === company.id && (
               <div className="check-mark">✓</div>
             )}

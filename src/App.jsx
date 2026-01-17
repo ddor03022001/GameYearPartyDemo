@@ -6,6 +6,7 @@ import MemePage from './pages/MemePage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import AdminPage from './pages/AdminPage';
 import PrintQRPage from './pages/PrintQRPage';
+import LiveDashboard from './pages/LiveDashboard';
 import './styles/tet-theme.css';
 
 function App() {
@@ -18,9 +19,11 @@ function App() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/print-qr" element={<PrintQRPage />} />
+        <Route path="/live" element={<LiveDashboard />} />
       </Routes>
     </Router>
   );
 }
 
 export default App;
+
