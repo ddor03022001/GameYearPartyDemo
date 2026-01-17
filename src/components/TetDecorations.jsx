@@ -1,82 +1,82 @@
 import React, { useEffect, useState } from 'react';
 
 const TetDecorations = () => {
-    const [flowers, setFlowers] = useState([]);
+  const [flowers, setFlowers] = useState([]);
 
-    useEffect(() => {
-        // Generate falling flowers
-        const generateFlowers = () => {
-            const newFlowers = [];
-            for (let i = 0; i < 15; i++) {
-                newFlowers.push({
-                    id: i,
-                    left: Math.random() * 100,
-                    delay: Math.random() * 10,
-                    duration: 8 + Math.random() * 7,
-                    size: 15 + Math.random() * 15,
-                    type: Math.random() > 0.5 ? '🌸' : '🏮',
-                });
-            }
-            setFlowers(newFlowers);
-        };
+  useEffect(() => {
+    // Generate falling flowers
+    const generateFlowers = () => {
+      const newFlowers = [];
+      for (let i = 0; i < 15; i++) {
+        newFlowers.push({
+          id: i,
+          left: Math.random() * 100,
+          delay: Math.random() * 10,
+          duration: 8 + Math.random() * 7,
+          size: 15 + Math.random() * 15,
+          type: Math.random() > 0.5 ? '🌸' : '🏮',
+        });
+      }
+      setFlowers(newFlowers);
+    };
 
-        generateFlowers();
-    }, []);
+    generateFlowers();
+  }, []);
 
-    return (
-        <div className="tet-decorations">
-            {/* Lanterns */}
-            <div className="lantern" style={{ left: '5%', top: '0' }}>
-                <div className="lantern-body">
-                    <div className="lantern-tassel"></div>
-                </div>
-            </div>
-            <div className="lantern" style={{ right: '5%', top: '0', animationDelay: '-1.5s' }}>
-                <div className="lantern-body">
-                    <div className="lantern-tassel"></div>
-                </div>
-            </div>
-            <div className="lantern" style={{ left: '25%', top: '-20px', animationDelay: '-0.8s' }}>
-                <div className="lantern-body">
-                    <div className="lantern-tassel"></div>
-                </div>
-            </div>
-            <div className="lantern" style={{ right: '25%', top: '-20px', animationDelay: '-2s' }}>
-                <div className="lantern-body">
-                    <div className="lantern-tassel"></div>
-                </div>
-            </div>
+  return (
+    <div className="tet-decorations">
+      {/* Lanterns */}
+      <div className="lantern" style={{ left: '5%', top: '0' }}>
+        <div className="lantern-body">
+          <div className="lantern-tassel"></div>
+        </div>
+      </div>
+      <div className="lantern" style={{ right: '5%', top: '0', animationDelay: '-1.5s' }}>
+        <div className="lantern-body">
+          <div className="lantern-tassel"></div>
+        </div>
+      </div>
+      <div className="lantern" style={{ left: '25%', top: '-20px', animationDelay: '-0.8s' }}>
+        <div className="lantern-body">
+          <div className="lantern-tassel"></div>
+        </div>
+      </div>
+      <div className="lantern" style={{ right: '25%', top: '-20px', animationDelay: '-2s' }}>
+        <div className="lantern-body">
+          <div className="lantern-tassel"></div>
+        </div>
+      </div>
 
-            {/* Falling flowers */}
-            {flowers.map((flower) => (
-                <div
-                    key={flower.id}
-                    className="flower"
-                    style={{
-                        left: `${flower.left}%`,
-                        animationDelay: `${flower.delay}s`,
-                        animationDuration: `${flower.duration}s`,
-                        fontSize: `${flower.size}px`,
-                    }}
-                >
-                    <span style={{ display: 'block' }}>{flower.type}</span>
-                </div>
-            ))}
+      {/* Falling flowers */}
+      {flowers.map((flower) => (
+        <div
+          key={flower.id}
+          className="flower"
+          style={{
+            left: `${flower.left}%`,
+            animationDelay: `${flower.delay}s`,
+            animationDuration: `${flower.duration}s`,
+            fontSize: `${flower.size}px`,
+          }}
+        >
+          <span style={{ display: 'block' }}>{flower.type}</span>
+        </div>
+      ))}
 
-            {/* Corner decorations */}
-            <div className="corner-decoration top-left">
-                <span style={{ fontSize: '40px' }}>🎊</span>
-            </div>
-            <div className="corner-decoration top-right">
-                <span style={{ fontSize: '40px' }}>🎊</span>
-            </div>
+      {/* Corner decorations */}
+      <div className="corner-decoration top-left">
+        <span style={{ fontSize: '40px' }}>🎊</span>
+      </div>
+      <div className="corner-decoration top-right">
+        <span style={{ fontSize: '40px' }}>🎊</span>
+      </div>
 
-            {/* New Year greeting */}
-            <div className="new-year-greeting" style={{ marginTop: '80px' }}>
-                <span className="greeting-text">🧧 Chúc Mừng Năm Mới 🧧</span>
-            </div>
+      {/* New Year greeting */}
+      {/* <div className="new-year-greeting">
+        <span className="greeting-text">🧧 Chúc Mừng Năm Mới 🧧</span>
+      </div> */}
 
-            <style>{`
+      <style>{`
         .tet-decorations {
           position: fixed;
           top: 0;
@@ -143,8 +143,8 @@ const TetDecorations = () => {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default TetDecorations;

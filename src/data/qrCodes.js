@@ -2,7 +2,7 @@
 // 200 codes for questions (Q001-Q200)
 // 100 codes for memes (M001-M100)
 
-export const BASE_URL = 'http://localhost:5173';
+export const BASE_URL = 'http://10.0.54.52:5174';
 
 // Meme messages
 export const MEME_MESSAGES = [
@@ -10,7 +10,7 @@ export const MEME_MESSAGES = [
     { id: 2, emoji: '🍀', text: 'Chúc bạn may mắn lần sau!', subtext: 'Đừng bỏ cuộc nhé~' },
     { id: 3, emoji: '😜', text: 'Lêu lêu~', subtext: 'Hehe, thử lại nào!' },
     { id: 4, emoji: '🧧', text: 'Lì xì đâu rồi?', subtext: 'Chúc Tết vui vẻ!' },
-    { id: 5, emoji: '🐉', text: 'Năm Rồng phát tài!', subtext: 'Rồng bay phượng múa!' },
+    { id: 5, emoji: '🐎', text: 'Năm Ngựa phát tài!', subtext: 'Mã đáo thành công!' },
     { id: 6, emoji: '🎉', text: 'Bạn giỏi lắm...', subtext: 'Nhưng chưa đủ! 😏' },
     { id: 7, emoji: '🔥', text: 'Hot hot hot!', subtext: 'Nóng quá đi mất!' },
     { id: 8, emoji: '💪', text: 'Cố lên nào!', subtext: 'Bạn làm được mà!' },

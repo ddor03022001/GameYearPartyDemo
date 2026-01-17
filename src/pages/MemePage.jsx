@@ -1,22 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TetDecorations from '../components/TetDecorations';
-import { getMemeForQRCode, MEME_MESSAGES } from '../data/qrCodes';
-import { isQRCodeUsed, markQRCodeUsed } from '../utils/storage';
+import { MEME_MESSAGES } from '../data/qrCodes';
+import * as api from '../utils/api';
 
 const MemePage = () => {
   const { qrId } = useParams();
   const navigate = useNavigate();
   const [meme, setMeme] = useState(null);
-  const [status, setStatus] = useState('loading'); // 'loading', 'show', 'used', 'invalid'
-  const hasChecked = useRef(false); // Prevent double execution
+  const [status, setStatus] = useState('loading');
+  const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Prevent double execution from React StrictMode
     if (hasChecked.current) return;
     hasChecked.current = true;
 
-    console.log('MemePage: qrId =', qrId);
+    checkAndLoadMeme();
+  }, [qrId]);
+
+  const checkAndLoadMeme = async () => {
+    // Check if game is started
+    const isStarted = await api.checkGameStarted();
+    if (!isStarted) {
+      setStatus('not_started');
+      return;
+    }
 
     // Validate meme code format
     if (!qrId || !qrId.startsWith('M')) {
@@ -24,38 +32,47 @@ const MemePage = () => {
       return;
     }
 
-    // Check if already used BEFORE this visit
-    if (isQRCodeUsed(qrId)) {
-      console.log('QR already used');
+    // Check if already used (from backend)
+    const isUsed = await api.checkQRUsed(qrId);
+    if (isUsed) {
       setStatus('used');
       return;
     }
 
-    // Get meme content
-    let memeData = getMemeForQRCode(qrId);
+    // Mark as used
+    await api.markQRUsed(qrId);
 
-    // Fallback: if no meme found, pick based on QR ID
-    if (!memeData) {
-      const numPart = parseInt(qrId.replace('M', ''), 10) || 1;
-      const memeIndex = (numPart - 1) % MEME_MESSAGES.length;
-      memeData = MEME_MESSAGES[memeIndex];
-    }
+    // Get meme content based on QR ID
+    const numPart = parseInt(qrId.replace('M', ''), 10) || 1;
+    const memeIndex = (numPart - 1) % MEME_MESSAGES.length;
+    const memeData = MEME_MESSAGES[memeIndex];
 
-    console.log('Meme data:', memeData);
-
-    // Mark as used AFTER getting meme data
-    markQRCodeUsed(qrId);
-
-    // Set meme and show
     setMeme(memeData);
     setStatus('show');
-
-  }, [qrId]);
+  };
 
   const handleClose = () => {
     window.close();
     setTimeout(() => navigate('/'), 500);
   };
+
+  // Game not started
+  if (status === 'not_started') {
+    return (
+      <div className="meme-page">
+        <TetDecorations />
+        <div className="meme-container glass-card show">
+          <span className="meme-emoji">⏰</span>
+          <h2 className="meme-text">Game Chưa Bắt Đầu</h2>
+          <p className="meme-subtext">Vui lòng chờ Admin bắt đầu game!</p>
+          <button className="tet-button" onClick={handleClose}>
+            Đóng
+          </button>
+        </div>
+        <style>{pageStyles}</style>
+      </div>
+    );
+  }
 
   // Invalid QR code
   if (status === 'invalid') {

@@ -1,34 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import TetDecorations from '../components/TetDecorations';
-import { getLeaderboard, getCompanies, getGameState, getGridSize } from '../utils/storage';
+import { getCompanies, getGridSize } from '../utils/storage';
 import { GAME_CONFIG } from '../data/config';
+import * as api from '../utils/api';
 
 const LeaderboardPage = () => {
   const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get all companies
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+
+    // Get companies from local config
     const companies = getCompanies() || GAME_CONFIG.companies;
-    const leaderboard = getLeaderboard();
     const gridSize = getGridSize() || GAME_CONFIG.gridSize;
     const totalPieces = gridSize * gridSize;
 
-    // Build teams data with completion status
-    const teamsData = companies.map(company => {
-      // Check if company completed (in leaderboard)
-      const completionEntry = leaderboard.find(entry => entry.companyId === company.id);
+    // Get stats from backend
+    const stats = await api.getStats();
 
-      // Get current game state
-      const gameState = getGameState(company.id);
-      const piecesFound = gameState.revealedPieces?.length || 0;
+    // Build teams data
+    const teamsData = companies.map(company => {
+      // Check if completed (in leaderboard)
+      const completionEntry = stats.leaderboard.find(entry => entry.company_id === company.id);
+
+      // Get game state
+      const gameState = stats.gameStates.find(g => g.companyId === company.id);
+      const piecesFound = gameState?.revealedPieces?.length || 0;
 
       return {
         id: company.id,
         name: company.name,
         logo: company.logo,
         isCompleted: !!completionEntry,
-        completedAt: completionEntry?.completedAt || null,
+        completedAt: completionEntry?.completed_at || null,
         timestamp: completionEntry?.timestamp || 0,
         piecesFound: piecesFound,
         totalPieces: totalPieces
@@ -38,15 +48,16 @@ const LeaderboardPage = () => {
     // Sort: completed first (by timestamp), then by pieces found
     teamsData.sort((a, b) => {
       if (a.isCompleted && b.isCompleted) {
-        return a.timestamp - b.timestamp; // Earlier completion first
+        return a.timestamp - b.timestamp;
       }
       if (a.isCompleted) return -1;
       if (b.isCompleted) return 1;
-      return b.piecesFound - a.piecesFound; // More pieces first
+      return b.piecesFound - a.piecesFound;
     });
 
     setTeams(teamsData);
-  }, []);
+    setLoading(false);
+  };
 
   const getRankIcon = (index, isCompleted) => {
     if (!isCompleted) return '🎯';
@@ -63,17 +74,22 @@ const LeaderboardPage = () => {
       <div className="page-content">
         <div className="header">
           <Link to="/" className="back-link">← Về Trang Chủ</Link>
-          <h1 className="tet-title" style={{ marginTop: "40px" }}>🏆 Bảng Xếp Hạng 🏆</h1>
+          <h1 className="tet-title">🏆 Bảng Xếp Hạng 🏆</h1>
+          <button className="refresh-btn" onClick={loadData} disabled={loading}>
+            🔄 Làm mới
+          </button>
         </div>
 
         <div className="leaderboard glass-card">
-          {teams.length === 0 ? (
+          {loading ? (
+            <div className="loading-state">
+              <span>⏳</span>
+              <p>Đang tải...</p>
+            </div>
+          ) : teams.length === 0 ? (
             <div className="empty-state">
               <span style={{ fontSize: '4rem' }}>🎮</span>
               <p>Chưa có đội nào tham gia</p>
-              <p style={{ opacity: 0.7, fontSize: '0.9rem' }}>
-                Hãy quét mã QR để bắt đầu!
-              </p>
             </div>
           ) : (
             teams.map((team, index) => (
@@ -141,16 +157,42 @@ const LeaderboardPage = () => {
           background: rgba(255, 215, 0, 0.2);
         }
         
+        .refresh-btn {
+          margin-top: 15px;
+          padding: 10px 20px;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 215, 0, 0.3);
+          border-radius: 20px;
+          color: #FFD700;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover:not(:disabled) {
+          background: rgba(255, 215, 0, 0.2);
+        }
+        
+        .refresh-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
         .leaderboard {
           display: flex;
           flex-direction: column;
           gap: 10px;
         }
         
-        .empty-state {
+        .loading-state, .empty-state {
           text-align: center;
           padding: 40px;
           color: #FFF8DC;
+        }
+        
+        .loading-state span, .empty-state span {
+          font-size: 3rem;
+          display: block;
+          margin-bottom: 15px;
         }
         
         .leaderboard-entry {
@@ -249,9 +291,6 @@ const LeaderboardPage = () => {
         .leaderboard-entry:nth-child(3) { animation-delay: 0.2s; }
         .leaderboard-entry:nth-child(4) { animation-delay: 0.25s; }
         .leaderboard-entry:nth-child(5) { animation-delay: 0.3s; }
-        .leaderboard-entry:nth-child(6) { animation-delay: 0.35s; }
-        .leaderboard-entry:nth-child(7) { animation-delay: 0.4s; }
-        .leaderboard-entry:nth-child(8) { animation-delay: 0.45s; }
       `}</style>
     </div>
   );

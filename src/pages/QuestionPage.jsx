@@ -1,162 +1,183 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TetDecorations from '../components/TetDecorations';
 import QuestionCard from '../components/QuestionCard';
 import CompanySelector from '../components/CompanySelector';
 import LogoPuzzle from '../components/LogoPuzzle';
 import Celebration from '../components/Celebration';
-import Popup from '../components/Popup';
 import {
     getRandomQuestion,
     handleCorrectAnswer,
     getRandomPieceIndex,
-    isPuzzleComplete,
-    formatDuration
 } from '../utils/gameLogic';
-import {
-    isQRCodeUsed,
-    markQRCodeUsed,
-    getGameState,
-    revealPiece,
-    completeGame,
-    addToLeaderboard,
-    getGridSize
-} from '../utils/storage';
+import { getGridSize } from '../utils/storage';
 import { GAME_CONFIG } from '../data/config';
 import { isValidQRCode, getQRType } from '../data/qrCodes';
+import * as api from '../utils/api';
 
 const QuestionPage = () => {
     const { qrId } = useParams();
     const navigate = useNavigate();
+    const hasChecked = useRef(false);
 
-    const [step, setStep] = useState('question'); // 'question', 'company', 'reveal', 'complete'
+    const [step, setStep] = useState('loading'); // 'loading', 'question', 'company', 'reveal', 'complete', 'used', 'invalid'
     const [question, setQuestion] = useState(null);
     const [selectedCompany, setSelectedCompany] = useState(null);
     const [gameState, setGameState] = useState(null);
     const [newPieceIndex, setNewPieceIndex] = useState(null);
     const [showCelebration, setShowCelebration] = useState(false);
-    const [alreadyUsed, setAlreadyUsed] = useState(false);
-    const [invalidCode, setInvalidCode] = useState(false);
-    const [playerName, setPlayerName] = useState('');
-    const [showNameInput, setShowNameInput] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
+        if (hasChecked.current) return;
+        hasChecked.current = true;
+
+        checkAndLoadQuestion();
+    }, [qrId]);
+
+    const checkAndLoadQuestion = async () => {
+        // Check if game is started
+        const isStarted = await api.checkGameStarted();
+        if (!isStarted) {
+            setStep('not_started');
+            return;
+        }
+
         // Check if valid question QR code
-        if (!isValidQRCode(qrId)) {
-            setInvalidCode(true);
+        if (!qrId || !qrId.startsWith('Q')) {
+            if (qrId && qrId.startsWith('M')) {
+                navigate(`/meme/${qrId}`, { replace: true });
+                return;
+            }
+            setStep('invalid');
             return;
         }
 
-        // If it's a meme QR, redirect to meme page
-        if (getQRType(qrId) === 'meme') {
-            navigate(`/meme/${qrId}`, { replace: true });
+        // Check if QR code is already used (from backend)
+        const isUsed = await api.checkQRUsed(qrId);
+        if (isUsed) {
+            setStep('used');
             return;
         }
 
-        // Check if QR code is already used
-        if (isQRCodeUsed(qrId)) {
-            setAlreadyUsed(true);
-            return;
-        }
+        // ⚡ ĐÁNH DẤU QR ĐÃ DÙNG NGAY LẬP TỨC (trước khi hiển thị câu hỏi)
+        // Điều này ngăn nhiều người quét cùng 1 QR
+        await api.markQRUsed(qrId);
 
         // Get random question
         const randomQuestion = getRandomQuestion();
         setQuestion(randomQuestion);
-    }, [qrId, navigate]);
+        setStep('question');
+    };
 
     const handleCorrectAnswerSubmit = () => {
-        // Decrease question priority
         handleCorrectAnswer(question.id);
-
-        // Move to company selection
         setStep('company');
     };
 
-    const handleCompanySelect = (company) => {
+    const handleCompanySelect = async (company) => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+
         setSelectedCompany(company);
 
-        // Get current game state for this company
-        const state = getGameState(company.id);
-        setGameState(state);
+        // Get current game state from backend
+        const state = await api.getGameState(company.id);
 
         // Get random piece to reveal
         const gridSize = getGridSize() || GAME_CONFIG.gridSize;
         const pieceIndex = getRandomPieceIndex(state.revealedPieces, gridSize);
 
         if (pieceIndex !== null) {
-            // Reveal the piece
-            const newState = revealPiece(company.id, pieceIndex);
-            setGameState(newState);
-            setNewPieceIndex(pieceIndex);
+            // Reveal the piece via backend
+            const result = await api.revealPiece(company.id, pieceIndex, gridSize);
 
-            // Mark QR as used
-            markQRCodeUsed(qrId);
-
-            // Check if puzzle is complete
-            const gridSizeValue = getGridSize() || GAME_CONFIG.gridSize;
-            if (isPuzzleComplete(newState.revealedPieces, gridSizeValue)) {
-                // Auto-save with company name
-                completeGame(company.id);
-
-                addToLeaderboard({
-                    playerName: company.name,
+            if (result.success) {
+                setGameState({
                     companyId: company.id,
-                    companyName: company.name,
-                    // completedAt and timestamp will be added automatically by addToLeaderboard
+                    revealedPieces: result.revealedPieces
                 });
+                setNewPieceIndex(result.newPieceIndex);
 
-                setStep('complete');
-                // Show celebration immediately
-                setTimeout(() => {
-                    setShowCelebration(true);
-                }, 1500); // Wait for puzzle animation
+                // QR đã được đánh dấu used ở checkAndLoadQuestion rồi
+
+                if (result.isCompleted) {
+                    // Add to leaderboard
+                    const completedAt = new Date().toLocaleString('vi-VN');
+                    await api.addToLeaderboard(company.id, company.name, completedAt);
+
+                    setStep('complete');
+                    setTimeout(() => {
+                        setShowCelebration(true);
+                    }, 1500);
+                } else {
+                    setStep('reveal');
+                }
             } else {
-                setStep('reveal');
+                // All pieces already revealed
+                setGameState({
+                    companyId: company.id,
+                    revealedPieces: result.revealedPieces || []
+                });
+                setStep('complete');
             }
         } else {
-            // All pieces already revealed - shouldn't happen normally
             setStep('complete');
         }
-    };
 
-    const handleSaveScore = () => {
-        if (!playerName.trim()) return;
-
-        // Complete the game and save to leaderboard
-        const finalState = completeGame(selectedCompany.id);
-        const duration = finalState.endTime - finalState.startTime;
-
-        addToLeaderboard({
-            playerName: playerName.trim(),
-            companyId: selectedCompany.id,
-            companyName: selectedCompany.name,
-            duration,
-            completedAt: new Date().toISOString(),
-        });
-
-        setShowCelebration(true);
-        setShowNameInput(false);
+        setIsProcessing(false);
     };
 
     const handleCelebrationComplete = () => {
-        // Close this tab or redirect to leaderboard
         window.close();
-        // Fallback if window.close() doesn't work
-        setTimeout(() => {
-            navigate('/leaderboard');
-        }, 500);
+        setTimeout(() => navigate('/leaderboard'), 500);
     };
 
     const handleCloseTab = () => {
         window.close();
-        // Fallback
-        setTimeout(() => {
-            navigate('/');
-        }, 500);
+        setTimeout(() => navigate('/'), 500);
     };
 
-    // Invalid QR code
-    if (invalidCode) {
+    // Game not started
+    if (step === 'not_started') {
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                <div className="page-content glass-card">
+                    <div style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: '5rem' }}>⏰</span>
+                        <h2 style={{ color: '#FFD700', margin: '20px 0' }}>Game Chưa Bắt Đầu</h2>
+                        <p style={{ color: '#FFF8DC', marginBottom: '30px' }}>
+                            Vui lòng chờ Admin bắt đầu game!
+                        </p>
+                        <button className="tet-button" onClick={handleCloseTab}>
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+                <style>{pageStyles}</style>
+            </div>
+        );
+    }
+
+    // Loading
+    if (step === 'loading') {
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                <div className="page-content glass-card">
+                    <div style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: '4rem' }}>⏳</span>
+                        <p style={{ color: '#FFF8DC', marginTop: '20px' }}>Đang tải...</p>
+                    </div>
+                </div>
+                <style>{pageStyles}</style>
+            </div>
+        );
+    }
+
+    // Invalid QR
+    if (step === 'invalid') {
         return (
             <div className="question-page">
                 <TetDecorations />
@@ -166,8 +187,6 @@ const QuestionPage = () => {
                         <h2 style={{ color: '#FFD700', margin: '20px 0' }}>Mã QR Không Hợp Lệ</h2>
                         <p style={{ color: '#FFF8DC', marginBottom: '30px' }}>
                             Mã QR này không tồn tại trong hệ thống.
-                            <br />
-                            Vui lòng kiểm tra lại!
                         </p>
                         <button className="tet-button" onClick={handleCloseTab}>
                             Đóng Tab
@@ -180,7 +199,7 @@ const QuestionPage = () => {
     }
 
     // Already used QR
-    if (alreadyUsed) {
+    if (step === 'used') {
         return (
             <div className="question-page">
                 <TetDecorations />
@@ -189,8 +208,7 @@ const QuestionPage = () => {
                         <span style={{ fontSize: '5rem' }}>🚫</span>
                         <h2 style={{ color: '#FFD700', margin: '20px 0' }}>Mã QR Đã Được Sử Dụng</h2>
                         <p style={{ color: '#FFF8DC', marginBottom: '30px' }}>
-                            Mã QR này đã được sử dụng trước đó.
-                            <br />
+                            Mã QR này đã được sử dụng trước đó.<br />
                             Vui lòng quét mã QR khác!
                         </p>
                         <button className="tet-button" onClick={handleCloseTab}>
@@ -203,151 +221,143 @@ const QuestionPage = () => {
         );
     }
 
-    return (
-        <div className="question-page">
-            <TetDecorations />
-
-            <div className="page-content">
-                {/* Step 1: Question */}
-                {step === 'question' && question && (
+    // Question step
+    if (step === 'question' && question) {
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                <div className="page-content">
                     <QuestionCard
                         question={question}
                         onCorrect={handleCorrectAnswerSubmit}
                     />
-                )}
+                </div>
+                <style>{pageStyles}</style>
+            </div>
+        );
+    }
 
-                {/* Step 2: Company Selection */}
-                {step === 'company' && (
-                    <div className="glass-card">
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <span style={{ fontSize: '3rem' }}>🎉</span>
-                            <h2 style={{ color: '#22c55e', margin: '10px 0' }}>Trả Lời Chính Xác!</h2>
-                        </div>
-                        <CompanySelector onSelect={handleCompanySelect} />
-                    </div>
-                )}
+    // Company selection step
+    if (step === 'company') {
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                <div className="page-content">
+                    <h2 className="step-title">🎯 Chọn Công Ty Để Nhận Mảnh Ghép</h2>
+                    <CompanySelector
+                        onSelect={handleCompanySelect}
+                        disabled={isProcessing}
+                    />
+                    {isProcessing && (
+                        <p style={{ color: '#FFD700', textAlign: 'center', marginTop: '20px' }}>
+                            Đang xử lý...
+                        </p>
+                    )}
+                </div>
+                <style>{pageStyles}</style>
+            </div>
+        );
+    }
 
-                {/* Step 3: Reveal Piece */}
-                {step === 'reveal' && selectedCompany && gameState && (
-                    <div className="glass-card reveal-section">
-                        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <span style={{ fontSize: '3rem' }}>✨</span>
-                            <h2 style={{ color: '#FFD700' }}>Mảnh Ghép Mới!</h2>
-                            <p style={{ color: '#FFF8DC' }}>{selectedCompany.name}</p>
-                        </div>
-
-                        <LogoPuzzle
-                            companyId={selectedCompany.id}
-                            logoUrl={selectedCompany.logo}
-                            revealedPieces={gameState.revealedPieces}
-                            newlyRevealed={newPieceIndex}
-                        />
-
-                        <button
-                            className="tet-button"
-                            onClick={handleCloseTab}
-                            style={{ marginTop: '30px', width: '100%' }}
-                        >
-                            Tiếp Tục Thu Thập
+    // Reveal step
+    if (step === 'reveal' && selectedCompany && gameState) {
+        const company = selectedCompany;
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                <div className="page-content">
+                    <h2 className="step-title">🧩 Mảnh Ghép Mới Cho {company.name}</h2>
+                    <LogoPuzzle
+                        companyId={company.id}
+                        logoUrl={company.logo}
+                        revealedPieces={gameState.revealedPieces}
+                        newlyRevealed={newPieceIndex}
+                    />
+                    <div style={{ textAlign: 'center', marginTop: '30px' }}>
+                        <button className="tet-button" onClick={handleCloseTab}>
+                            Hoàn Tất
                         </button>
                     </div>
-                )}
+                </div>
+                <style>{pageStyles}</style>
+            </div>
+        );
+    }
 
-                {/* Step 4: Complete */}
-                {step === 'complete' && selectedCompany && gameState && (
-                    <div className="glass-card complete-section">
-                        <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '4rem' }}>🏆</span>
-                            <h2 style={{ color: '#FFD700', margin: '10px 0' }}>HOÀN THÀNH!</h2>
-                            <p style={{ color: '#22c55e', fontSize: '1.2rem' }}>
-                                Bạn đã thu thập đủ tất cả mảnh ghép!
-                            </p>
-                            <p style={{ color: '#FFF8DC', fontSize: '1.5rem', marginTop: '10px' }}>
-                                🎉 {selectedCompany.name} 🎉
-                            </p>
-                        </div>
-
+    // Complete step
+    if (step === 'complete' && selectedCompany) {
+        const company = selectedCompany;
+        return (
+            <div className="question-page">
+                <TetDecorations />
+                {showCelebration && <Celebration onComplete={handleCelebrationComplete} />}
+                <div className="page-content">
+                    <h2 className="step-title">🎉 {company.name} Đã Hoàn Thành!</h2>
+                    {gameState && (
                         <LogoPuzzle
-                            companyId={selectedCompany.id}
-                            logoUrl={selectedCompany.logo}
+                            companyId={company.id}
+                            logoUrl={company.logo}
                             revealedPieces={gameState.revealedPieces}
                         />
-
-                        <div style={{ marginTop: '30px', display: 'flex', gap: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <button
-                                className="tet-button"
-                                onClick={() => navigate('/leaderboard')}
-                            >
-                                🏆 Xem Bảng Xếp Hạng
-                            </button>
-                            <button
-                                className="tet-button secondary"
-                                onClick={handleCloseTab}
-                            >
-                                Đóng Tab
-                            </button>
-                        </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '15px', marginTop: '30px', justifyContent: 'center' }}>
+                        <button className="tet-button" onClick={() => navigate('/leaderboard')}>
+                            🏆 Xem Bảng Xếp Hạng
+                        </button>
+                        <button className="tet-button secondary" onClick={handleCloseTab}>
+                            Đóng
+                        </button>
                     </div>
-                )}
+                </div>
+                <style>{pageStyles}</style>
             </div>
+        );
+    }
 
-            {showCelebration && (
-                <Celebration onComplete={handleCelebrationComplete} />
-            )}
-
+    // Loading fallback
+    return (
+        <div className="question-page">
+            <TetDecorations />
+            <div className="page-content glass-card">
+                <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: '4rem' }}>⏳</span>
+                    <p style={{ color: '#FFF8DC', marginTop: '20px' }}>Đang tải...</p>
+                </div>
+            </div>
             <style>{pageStyles}</style>
         </div>
     );
 };
 
 const pageStyles = `
-  .question-page {
-    min-height: 100vh;
-    padding: 80px 20px 40px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .page-content {
-    position: relative;
-    z-index: 10;
-    width: 100%;
-    max-width: 600px;
-  }
-  
-  .reveal-section,
-  .complete-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .name-input-section {
-    width: 100%;
-    max-width: 300px;
-    margin-top: 30px;
-  }
-  
-  .name-input {
-    width: 100%;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 215, 0, 0.5);
-    border-radius: 10px;
-    color: #FFF8DC;
-    font-size: 1rem;
-    text-align: center;
-  }
-  
-  .name-input:focus {
-    outline: none;
-    border-color: #FFD700;
-  }
-  
-  .name-input::placeholder {
-    color: rgba(255, 248, 220, 0.5);
-  }
+    .question-page {
+        min-height: 100vh;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .page-content {
+        position: relative;
+        z-index: 10;
+        max-width: 600px;
+        width: 100%;
+        margin: 0 auto;
+    }
+    
+    .step-title {
+        color: #FFD700;
+        text-align: center;
+        margin-bottom: 30px;
+        font-size: 1.5rem;
+        text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    }
+    
+    .tet-button.secondary {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 215, 0, 0.5);
+    }
 `;
 
 export default QuestionPage;

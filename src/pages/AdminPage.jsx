@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import TetDecorations from '../components/TetDecorations';
-import { generateQRCodes, printQRCodes, downloadQRCodes } from '../utils/qrGenerator';
 import { importQuestionsFromExcel, generateExcelTemplate } from '../utils/excelImport';
 import {
   getQuestions,
   saveQuestions,
-  getQRCodes,
   saveGridSize,
   getGridSize,
   getCompanies,
   saveCompanies,
-  clearAllData,
-  resetGameResults,
-  clearAllQRCodes,
-  getUsedQRCodes,
   downloadBackup
 } from '../utils/storage';
 import { DEFAULT_QUESTIONS, GAME_CONFIG } from '../data/config';
+import * as api from '../utils/api';
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('qr');
@@ -30,17 +25,48 @@ const AdminPage = () => {
   const [newCompany, setNewCompany] = useState({ name: '', logo: '' });
   const [isGenerating, setIsGenerating] = useState(false);
   const [usedQRCount, setUsedQRCount] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
 
   useEffect(() => {
     const savedQuestions = getQuestions() || DEFAULT_QUESTIONS;
     setQuestions(savedQuestions);
 
-    const savedQRs = getQRCodes();
-    setGeneratedQRs(savedQRs);
-
-    const usedQRs = getUsedQRCodes();
-    setUsedQRCount(usedQRs.length);
+    // Load stats from backend
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    try {
+      const stats = await api.getStats();
+      setUsedQRCount(stats.usedQRCount || 0);
+      setGameStarted(stats.gameStarted || false);
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    }
+  };
+
+  // Game control
+  const handleStartGame = async () => {
+    await api.startGame();
+    setGameStarted(true);
+    alert('🎮 Game đã bắt đầu! Người chơi có thể quét QR.');
+  };
+
+  const handleStopGame = async () => {
+    if (window.confirm('Dừng game? Người chơi sẽ không thể quét QR nữa.')) {
+      await api.stopGame();
+      setGameStarted(false);
+      alert('⏹️ Game đã dừng.');
+    }
+  };
+
+  const handleResetGame = async () => {
+    if (window.confirm('Reset game?\\n\\n• Xóa tất cả mảnh ghép\\n• Reset QR đã dùng\\n• Xóa bảng xếp hạng')) {
+      await api.resetGame();
+      setUsedQRCount(0);
+      alert('🔄 Game đã reset! Tất cả có thể chơi lại từ đầu.');
+    }
+  };
 
   // QR Code Generation
   const handleGenerateQR = async () => {
@@ -119,30 +145,28 @@ const AdminPage = () => {
     saveCompanies(updatedCompanies);
   };
 
-  // Reset Game Results (keep questions, QR codes, and used QR status)
-  const handleResetGameResults = () => {
-    if (window.confirm('Xóa kết quả và reset mảnh ghép công ty?\n\n• Câu hỏi và mã QR giữ nguyên\n• QR đã dùng vẫn không thể quét lại')) {
-      resetGameResults();
-      // Không reset usedQRCount vì QR đã dùng vẫn giữ nguyên
+  // Reset Game Results (keep QR used status)
+  const handleResetGameResults = async () => {
+    if (window.confirm('Xóa kết quả và reset mảnh ghép công ty?\n\n• QR đã dùng vẫn không thể quét lại')) {
+      await api.resetGameStates();
+      await api.resetLeaderboard();
       alert('Đã xóa kết quả game và reset mảnh ghép!');
     }
   };
 
-  // Reset All QR Codes
-  const handleResetAllQRCodes = () => {
-    if (window.confirm('Xóa TẤT CẢ mã QR? Hành động này không thể hoàn tác!')) {
-      clearAllQRCodes();
-      setGeneratedQRs([]);
+  // Reset Used QR Codes (cho phép quét lại)
+  const handleResetUsedQRCodes = async () => {
+    if (window.confirm('Reset QR đã dùng? Tất cả mã QR sẽ có thể quét lại!')) {
+      await api.resetUsedQRCodes();
       setUsedQRCount(0);
-      alert('Đã xóa tất cả mã QR!');
+      alert('Đã reset! Tất cả QR có thể quét lại.');
     }
   };
 
   // Reset All Data
-  const handleResetData = () => {
-    if (window.confirm('Xóa TẤT CẢ dữ liệu (QR, câu hỏi, kết quả)?\n\nHành động này không thể hoàn tác!')) {
-      clearAllData();
-      setGeneratedQRs([]);
+  const handleResetData = async () => {
+    if (window.confirm('Xóa TẤT CẢ dữ liệu (QR đã dùng, kết quả, mảnh ghép)?\n\nHành động này không thể hoàn tác!')) {
+      await api.resetAllData();
       setQuestions(DEFAULT_QUESTIONS);
       setCompanies(GAME_CONFIG.companies);
       setGridSize(GAME_CONFIG.gridSize);
@@ -197,6 +221,38 @@ const AdminPage = () => {
         <div className="tab-content glass-card">
           {activeTab === 'qr' && (
             <div className="admin-section">
+              {/* Game Control */}
+              <div className="game-control-section">
+                <h2>🎮 Điều Khiển Game</h2>
+                <div className={`game-status ${gameStarted ? 'started' : 'stopped'}`}>
+                  <span className="status-icon">{gameStarted ? '🟢' : '🔴'}</span>
+                  <span className="status-text">
+                    {gameStarted ? 'Game Đang Chạy' : 'Game Đã Dừng'}
+                  </span>
+                </div>
+                <div className="game-control-buttons">
+                  {!gameStarted ? (
+                    <button className="start-btn" onClick={handleStartGame}>
+                      ▶️ Bắt Đầu Game
+                    </button>
+                  ) : (
+                    <button className="stop-btn" onClick={handleStopGame}>
+                      ⏹️ Dừng Game
+                    </button>
+                  )}
+                  <button className="reset-game-btn" onClick={handleResetGame}>
+                    🔄 Reset Game
+                  </button>
+                </div>
+                <p className="control-hint">
+                  {gameStarted
+                    ? '✅ Người chơi có thể quét QR và chơi game.'
+                    : '⚠️ Người chơi không thể quét QR khi game chưa bắt đầu.'}
+                </p>
+              </div>
+
+              <hr className="section-divider" />
+
               <h2>Mã QR Cố Định (300 mã)</h2>
 
               <div className="fixed-qr-info">
@@ -236,14 +292,17 @@ const AdminPage = () => {
                   </div>
                 </div>
 
-                <div className="button-group" style={{ marginTop: '30px' }}>
+                <div className="button-group" style={{ marginTop: '30px', gap: '15px' }}>
                   <a href="/print-qr" className="tet-button" target="_blank" rel="noopener noreferrer">
                     🖨️ In 300 Mã QR
                   </a>
+                  <button className="action-btn" onClick={loadStats}>
+                    🔄 Làm Mới Thống Kê
+                  </button>
                 </div>
 
                 <p className="hint-text">
-                  * Nhấn nút trên để mở trang in QR codes. Bạn có thể chọn lọc và in ra PDF.
+                  * Nhấn nút In QR để mở trang in. Nhấn Làm mới để cập nhật số liệu mới nhất.
                 </p>
               </div>
             </div>
@@ -384,15 +443,23 @@ const AdminPage = () => {
 
               <div className="reset-section">
                 <h3>🔄 Reset Kết Quả Game</h3>
-                <p>Xóa bảng xếp hạng và reset mảnh ghép. Giữ nguyên câu hỏi, QR, và trạng thái QR đã dùng.</p>
+                <p>Xóa bảng xếp hạng và reset mảnh ghép. QR đã dùng vẫn không thể quét lại.</p>
                 <button className="warning-btn" onClick={handleResetGameResults}>
                   Reset Kết Quả Game
                 </button>
               </div>
 
+              <div className="reset-section">
+                <h3>🔓 Reset QR Đã Dùng</h3>
+                <p>Cho phép quét lại tất cả mã QR. Dùng khi muốn chơi lại từ đầu.</p>
+                <button className="warning-btn" onClick={handleResetUsedQRCodes}>
+                  Reset QR Đã Dùng ({usedQRCount} mã)
+                </button>
+              </div>
+
               <div className="danger-zone">
                 <h3>⚠️ Vùng Nguy Hiểm</h3>
-                <p>Xóa <strong>TẤT CẢ</strong> dữ liệu game (QR codes, kết quả, câu hỏi...)</p>
+                <p>Xóa <strong>TẤT CẢ</strong> dữ liệu (QR đã dùng, kết quả, mảnh ghép...)</p>
                 <button className="danger-btn" onClick={handleResetData}>
                   Xóa Tất Cả Dữ Liệu
                 </button>
@@ -883,6 +950,100 @@ const AdminPage = () => {
         a.tet-button {
           display: inline-block;
           text-decoration: none;
+        }
+        
+        .game-control-section {
+          text-align: center;
+          margin-bottom: 20px;
+        }
+        
+        .game-status {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 15px 30px;
+          border-radius: 50px;
+          margin: 20px 0;
+          font-size: 1.2rem;
+          font-weight: bold;
+        }
+        
+        .game-status.started {
+          background: rgba(34, 197, 94, 0.2);
+          border: 2px solid #22c55e;
+          color: #22c55e;
+        }
+        
+        .game-status.stopped {
+          background: rgba(239, 68, 68, 0.2);
+          border: 2px solid #ef4444;
+          color: #ef4444;
+        }
+        
+        .status-icon {
+          font-size: 1.5rem;
+        }
+        
+        .game-control-buttons {
+          display: flex;
+          gap: 15px;
+          justify-content: center;
+          flex-wrap: wrap;
+          margin: 20px 0;
+        }
+        
+        .start-btn, .stop-btn, .reset-game-btn {
+          padding: 15px 30px;
+          border-radius: 30px;
+          font-size: 1.1rem;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          border: 2px solid;
+        }
+        
+        .start-btn {
+          background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+          border-color: #22c55e;
+          color: white;
+        }
+        
+        .start-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4);
+        }
+        
+        .stop-btn {
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          border-color: #ef4444;
+          color: white;
+        }
+        
+        .stop-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+        }
+        
+        .reset-game-btn {
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          border-color: #f59e0b;
+          color: white;
+        }
+        
+        .reset-game-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 30px rgba(245, 158, 11, 0.4);
+        }
+        
+        .control-hint {
+          color: rgba(255, 248, 220, 0.8);
+          font-size: 0.95rem;
+        }
+        
+        .section-divider {
+          border: none;
+          border-top: 1px solid rgba(255, 215, 0, 0.2);
+          margin: 30px 0;
         }
       `}</style>
     </div>
