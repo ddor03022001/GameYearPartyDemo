@@ -2,7 +2,7 @@
 // 200 codes for questions (Q001-Q200)
 // 100 codes for memes (M001-M100)
 
-export const BASE_URL = 'http://10.0.54.52:5174';
+export const BASE_URL = 'http://http://10.0.54.10:5174';
 
 // Meme messages
 export const MEME_MESSAGES = [

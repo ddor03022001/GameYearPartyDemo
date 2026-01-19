@@ -1,6 +1,6 @@
 // API Client for Game Backend
 // Sử dụng hostname hiện tại để điện thoại có thể kết nối
-const API_BASE = `http://10.0.54.52:3001/api`;
+const API_BASE = `http://localhost:3001/api`;
 
 // ============ QR CODES ============
 

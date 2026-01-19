@@ -42,8 +42,10 @@ const LogoPuzzle = ({
       const isAnimating = animatingPiece === i;
 
       // Calculate background position for this piece
-      const bgPosX = size > 1 ? (col * 100) / (size - 1) : 50;
-      const bgPosY = size > 1 ? (row * 100) / (size - 1) : 50;
+      // Mỗi piece chiếm 1/size của ảnh
+      // Position tính theo % của phần còn lại sau khi trừ đi kích thước piece
+      const bgPosX = size > 1 ? (col / (size - 1)) * 100 : 0;
+      const bgPosY = size > 1 ? (row / (size - 1)) * 100 : 0;
 
       pieces.push(
         <div
@@ -55,7 +57,7 @@ const LogoPuzzle = ({
             style={{
               backgroundImage: `url(${logoUrl})`,
               backgroundPosition: `${bgPosX}% ${bgPosY}%`,
-              backgroundSize: `${size * 100}%`,
+              backgroundSize: `${size * 100}% ${size * 100}%`,
               backgroundRepeat: 'no-repeat',
             }}
           />
