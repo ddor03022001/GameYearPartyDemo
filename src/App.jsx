@@ -7,6 +7,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import AdminPage from './pages/AdminPage';
 import PrintQRPage from './pages/PrintQRPage';
 import LiveDashboard from './pages/LiveDashboard';
+import RankingBoard from './pages/RankingBoard';
 import './styles/tet-theme.css';
 
 function App() {
@@ -20,10 +21,10 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/print-qr" element={<PrintQRPage />} />
         <Route path="/live" element={<LiveDashboard />} />
+        <Route path="/ranking" element={<RankingBoard />} />
       </Routes>
     </Router>
   );
 }
 
 export default App;
-

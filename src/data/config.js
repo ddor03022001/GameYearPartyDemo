@@ -8,15 +8,21 @@ export const GAME_CONFIG = {
 
   // Companies with their logos
   companies: [
-    { id: 'company1', name: 'Công ty A', logo: '/logos/company1.svg' },
-    { id: 'company2', name: 'Công ty B', logo: '/logos/company2.svg' },
-    { id: 'company3', name: 'Công ty C', logo: '/logos/company3.svg' },
-    { id: 'company4', name: 'Công ty SeaTek', logo: '/logos/logo_seatek.jpg' },
-    { id: 'company5', name: 'Công ty C', logo: '/logos/company3.svg' },
-    { id: 'company6', name: 'Công ty C', logo: '/logos/company3.svg' },
-    { id: 'company7', name: 'Công ty C', logo: '/logos/company3.svg' },
-    { id: 'company8', name: 'Công ty C', logo: '/logos/company3.svg' },
-    { id: 'company9', name: 'Công ty C', logo: '/logos/company3.svg' },
+    { id: 'company1', name: 'SeaLion Corporation', logo: '/logos/16.png' },
+    { id: 'company2', name: 'Pegasus', logo: '/logos/15.png' },
+    { id: 'company3', name: 'SeaEnergy', logo: '/logoss/17.png' },
+    { id: 'company4', name: 'DannyGreen Corporation', logo: '/logos/18.png' },
+    { id: 'company5', name: 'DannyGreen NaCoPharma', logo: '/logos/20.png' },
+    { id: 'company6', name: 'DannyGreen Beverages', logo: '/logos/19.png' },
+    { id: 'company7', name: 'DannyGreen RnF', logo: '/logos/21.png' },
+    { id: 'company8', name: 'DANNYGREEN & FRIENDS INC', logo: '/logos/26.png' },
+    { id: 'company9', name: 'DANNYGREEN MIDDLE EAST GENERAL TRADING L.L.C', logo: '/logos/25.png' },
+    { id: 'company10', name: 'HACT', logo: '/logos/28.png' },
+    { id: 'company11', name: 'NJSC', logo: '/logos/5.png' },
+    { id: 'company12', name: 'AFMG', logo: '/logos/10.png' },
+    { id: 'company13', name: 'SeaTek', logo: '/logos/9.png' },
+    { id: 'company14', name: 'SeaLand', logo: '/logos/11.png' },
+    { id: 'company15', name: 'SCA', logo: '/logos/12.png' },
   ],
 };
 
