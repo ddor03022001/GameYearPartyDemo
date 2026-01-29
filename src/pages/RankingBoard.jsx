@@ -9,7 +9,8 @@ const RankingBoard = () => {
         answerHistory: [],
         gameStates: [],
         leaderboard: [],
-        gameStarted: false
+        gameStarted: false,
+        gameStartTime: null
     });
 
     const companies = getCompanies() || GAME_CONFIG.companies;
@@ -45,15 +46,36 @@ const RankingBoard = () => {
         return Math.max(...answers.map(a => a.timestamp || 0));
     };
 
+    const getCompletionTime = (companyId) => {
+        const entry = data.leaderboard.find(l => l.company_id === companyId);
+        return entry ? entry.completion_time : null;
+    };
+
+    const formatTime = (ms) => {
+        if (!ms) return '--:--';
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
+
     // Sort companies by progress
     const sortedCompanies = companies
         .map(company => ({
             ...company,
             state: getCompanyState(company.id),
             answerCount: getAnswerCount(company.id),
-            lastTimestamp: getLastTimestamp(company.id)
+            lastTimestamp: getLastTimestamp(company.id),
+            completionTime: getCompletionTime(company.id)
         }))
         .sort((a, b) => {
+            // Completed companies first (by completion time - faster first)
+            if (a.completionTime && b.completionTime) {
+                return a.completionTime - b.completionTime;
+            }
+            if (a.completionTime) return -1;
+            if (b.completionTime) return 1;
+            // Then by pieces count
             const pieceDiff = b.state.revealedPieces.length - a.state.revealedPieces.length;
             if (pieceDiff !== 0) return pieceDiff;
             return a.lastTimestamp - b.lastTimestamp;
@@ -77,7 +99,7 @@ const RankingBoard = () => {
                     <div className="table-header">
                         <div className="col-company-header">TÊN CÔNG TY</div>
                         <div className="col-answers-header">SỐ CÂU TRẢ LỜI ĐÚNG</div>
-                        <div className="col-pieces-header">SỐ MẢNH GHÉP TÌM ĐƯỢC</div>
+                        <div className="col-pieces-header">SỐ MẢNH GHÉP / THỜI GIAN</div>
                     </div>
 
                     {/* Scrollable List */}
@@ -85,12 +107,14 @@ const RankingBoard = () => {
                         {sortedCompanies.map((company, index) => {
                             const piecesCount = company.state.revealedPieces.length;
                             const progress = (piecesCount / totalPieces) * 100;
+                            // Kiểm tra hoàn thành: có completion_time HOẶC đủ mảnh
+                            const isCompleted = !!company.completionTime || piecesCount >= totalPieces;
 
                             return (
-                                <div key={company.id} className="ranking-row">
+                                <div key={company.id} className={`ranking-row ${isCompleted ? 'completed' : ''}`}>
                                     {/* Rank & Logo & Name */}
                                     <div className="col-company">
-                                        <div className="rank-box">
+                                        <div className={`rank-box ${isCompleted ? 'winner' : ''}`}>
                                             <span>#{index + 1}</span>
                                         </div>
                                         <div className="company-logo">
@@ -110,23 +134,30 @@ const RankingBoard = () => {
                                         <span className="answer-text">
                                             <span className="highlight-red">{company.answerCount}</span>
                                             <span className="divider">/</span>
-                                            {totalPieces} {/* Assuming total questions usually matches grid size or config */}
+                                            {totalPieces}
                                         </span>
                                     </div>
 
-                                    {/* Progress Bar with Gold Box */}
+                                    {/* Progress Bar OR Completion Time */}
                                     <div className="col-pieces">
-                                        <div className="gold-progress-container">
-                                            <div className="gold-box">
-                                                {piecesCount}/{totalPieces}
+                                        {isCompleted ? (
+                                            <div className="completion-time-display">
+                                                <span className="time-icon">🏆</span>
+                                                <span className="time-value">{formatTime(company.completionTime)}</span>
                                             </div>
-                                            <div className="bar-track">
-                                                <div
-                                                    className="bar-fill"
-                                                    style={{ width: `${progress}%` }}
-                                                />
+                                        ) : (
+                                            <div className="gold-progress-container">
+                                                <div className="gold-box">
+                                                    {piecesCount}/{totalPieces}
+                                                </div>
+                                                <div className="bar-track">
+                                                    <div
+                                                        className="bar-fill"
+                                                        style={{ width: `${progress}%` }}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -376,6 +407,45 @@ const styles = `
         background: linear-gradient(90deg, #F0E68C, #D4A04A);
         border-radius: 0 6px 6px 0;
         transition: width 0.5s ease;
+    }
+
+    /* COMPLETED ROW */
+    .ranking-row.completed {
+        background: linear-gradient(90deg, rgba(255, 215, 0, 0.1), transparent);
+    }
+
+    .rank-box.winner {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        color: #5D3A1A;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    /* COMPLETION TIME DISPLAY */
+    .completion-time-display {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        padding: 8px 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+    }
+
+    .time-icon {
+        font-size: 1.2rem;
+    }
+
+    .time-value {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: white;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 1px;
     }
 
     /* RESPONSIVE */

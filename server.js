@@ -33,7 +33,8 @@ db.exec(`
     company_id TEXT,
     company_name TEXT,
     completed_at TEXT,
-    timestamp INTEGER
+    timestamp INTEGER,
+    completion_time INTEGER
   );
   
   CREATE TABLE IF NOT EXISTS config (
@@ -198,12 +199,17 @@ app.post('/api/leaderboard', (req, res) => {
         return res.json({ success: false, message: 'Already in leaderboard' });
     }
 
-    db.prepare(`
-    INSERT INTO leaderboard (company_id, company_name, completed_at, timestamp)
-    VALUES (?, ?, ?, ?)
-  `).run(companyId, companyName, completedAt, Date.now());
+    // Calculate completion time
+    const gameStartTimeRow = db.prepare('SELECT value FROM config WHERE key = ?').get('game_start_time');
+    const gameStartTime = gameStartTimeRow ? parseInt(gameStartTimeRow.value) : Date.now();
+    const completionTime = Date.now() - gameStartTime;
 
-    res.json({ success: true });
+    db.prepare(`
+    INSERT INTO leaderboard (company_id, company_name, completed_at, timestamp, completion_time)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(companyId, companyName, completedAt, Date.now(), completionTime);
+
+    res.json({ success: true, completionTime });
 });
 
 // Reset leaderboard
@@ -254,6 +260,7 @@ app.get('/api/game-status', (req, res) => {
 // Start game
 app.post('/api/game-status/start', (req, res) => {
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('game_started', 'true');
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run('game_start_time', Date.now().toString());
     res.json({ success: true, started: true });
 });
 
@@ -311,6 +318,10 @@ app.get('/api/live-dashboard', (req, res) => {
     const gameStartedRow = db.prepare('SELECT value FROM config WHERE key = ?').get('game_started');
     const gameStarted = gameStartedRow ? gameStartedRow.value === 'true' : false;
 
+    // Get game start time
+    const gameStartTimeRow = db.prepare('SELECT value FROM config WHERE key = ?').get('game_start_time');
+    const gameStartTime = gameStartTimeRow ? parseInt(gameStartTimeRow.value) : null;
+
     res.json({
         answerHistory,
         gameStates: gameStates.map(g => ({
@@ -319,7 +330,8 @@ app.get('/api/live-dashboard', (req, res) => {
             isCompleted: !!g.is_completed
         })),
         leaderboard,
-        gameStarted
+        gameStarted,
+        gameStartTime
     });
 });
 
